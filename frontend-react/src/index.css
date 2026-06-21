@@ -1,0 +1,8 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #020608;
+  color: #e0f4ff;
+  font-family: 'Rajdhani', sans-serif;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #0d7a9e; }

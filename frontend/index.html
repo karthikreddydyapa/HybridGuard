@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HybridGuard — Security Operations Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg-primary: #020608;
+    --bg-secondary: #050d12;
+    --bg-panel: #071018;
+    --bg-card: #0a1520;
+    --border: #0e2535;
+    --border-glow: #0d7a9e;
+    --accent-cyan: #00d4ff;
+    --accent-green: #00ff88;
+    --accent-red: #ff2d55;
+    --accent-orange: #ff6b35;
+    --accent-yellow: #ffd700;
+    --text-primary: #e0f4ff;
+    --text-secondary: #5a8fa8;
+    --text-dim: #2a5570;
+    --critical: #ff2d55;
+    --high: #ff6b35;
+    --medium: #ffd700;
+    --low: #00ff88;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none; z-index:0;
+    animation: gridPulse 8s ease-in-out infinite;
+  }
+  @keyframes gridPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+  body::after {
+    content:'';
+    position:fixed; inset:0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.12) 2px,rgba(0,0,0,0.12) 4px);
+    pointer-events:none; z-index:1;
+  }
+  .app { position:relative; z-index:2; display:flex; flex-direction:column; height:100vh; }
+
+  /* HEADER */
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 0 28px; height: 60px;
+    background: linear-gradient(90deg, rgba(0,212,255,0.06), transparent, rgba(0,212,255,0.06));
+    border-bottom: 1px solid var(--border);
+    flex-shrink:0; z-index:100;
+    backdrop-filter: blur(20px);
+  }
+  .logo { display:flex; align-items:center; gap:14px; }
+  .logo-hex {
+    width:38px; height:38px; border:2px solid var(--accent-cyan);
+    transform:rotate(45deg); display:flex; align-items:center; justify-content:center;
+    animation: hexPulse 3s ease-in-out infinite;
+  }
+  .logo-hex::before { content:'◈'; transform:rotate(-45deg); color:var(--accent-cyan); font-size:18px; }
+  @keyframes hexPulse { 0%,100%{box-shadow:0 0 10px rgba(0,212,255,0.3)} 50%{box-shadow:0 0 30px rgba(0,212,255,0.8),0 0 60px rgba(0,212,255,0.2)} }
+  .logo-text { font-family:'Orbitron',monospace; font-size:20px; font-weight:900; color:var(--accent-cyan); letter-spacing:4px; text-shadow:0 0 20px rgba(0,212,255,0.5); }
+  .logo-sub { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary); letter-spacing:3px; margin-top:1px; }
+  .header-mid { display:flex; align-items:center; gap:20px; }
+  .threat-pill {
+    display:flex; align-items:center; gap:8px; padding:6px 16px;
+    border:1px solid var(--accent-red); background:rgba(255,45,85,0.08);
+    font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--accent-red);
+    animation:threatAnim 2s ease-in-out infinite;
+  }
+  @keyframes threatAnim { 0%,100%{box-shadow:0 0 10px rgba(255,45,85,0.2)} 50%{box-shadow:0 0 25px rgba(255,45,85,0.5)} }
+  .blink { width:8px; height:8px; background:var(--accent-red); border-radius:50%; animation:blink 1s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  .status-row { display:flex; gap:14px; }
+  .sdot { display:flex; align-items:center; gap:5px; font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary); letter-spacing:1px; }
+  .dot { width:6px; height:6px; border-radius:50%; }
+  .dot.g { background:var(--accent-green); box-shadow:0 0 6px var(--accent-green); animation:blink 2s ease infinite; }
+  .dot.y { background:var(--accent-yellow); }
+  .hclock { text-align:right; }
+  .clock-val { font-family:'Orbitron',monospace; font-size:16px; font-weight:700; color:var(--accent-cyan); }
+  .clock-date { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary); letter-spacing:2px; margin-top:2px; }
+
+  /* TICKER */
+  .ticker {
+    height:30px; background:rgba(0,212,255,0.04); border-bottom:1px solid var(--border);
+    overflow:hidden; display:flex; align-items:center; flex-shrink:0;
+    font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-secondary); letter-spacing:1px;
+  }
+  .ticker-label { padding:0 16px; color:var(--accent-cyan); border-right:1px solid var(--border); white-space:nowrap; font-size:9px; letter-spacing:2px; height:100%; display:flex; align-items:center; }
+  .ticker-scroll { overflow:hidden; flex:1; }
+  .ticker-inner { display:inline-block; animation:scroll 35s linear infinite; white-space:nowrap; }
+  @keyframes scroll { from{transform:translateX(100vw)} to{transform:translateX(-100%)} }
+
+  /* BODY LAYOUT */
+  .body { display:grid; grid-template-columns:200px 1fr 280px; flex:1; overflow:hidden; }
+
+  /* LEFT NAV */
+  aside {
+    background:var(--bg-secondary); border-right:1px solid var(--border);
+    padding:20px 0; overflow-y:auto; display:flex; flex-direction:column; gap:0;
+  }
+  .nl { font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:3px; color:var(--text-dim); padding:0 18px; margin:16px 0 6px; }
+  .ni {
+    display:flex; align-items:center; gap:10px; padding:9px 18px;
+    font-size:12px; font-weight:600; letter-spacing:1px; color:var(--text-secondary);
+    cursor:pointer; border-left:3px solid transparent; transition:all 0.2s; text-transform:uppercase;
+  }
+  .ni:hover { color:var(--text-primary); background:rgba(0,212,255,0.05); border-left-color:var(--accent-cyan); }
+  .ni.active { color:var(--accent-cyan); background:rgba(0,212,255,0.08); border-left-color:var(--accent-cyan); text-shadow:0 0 10px rgba(0,212,255,0.4); }
+  .ni-icon { width:18px; text-align:center; font-size:14px; }
+  .nbadge { margin-left:auto; background:var(--accent-red); color:#fff; font-size:9px; font-family:'Share Tech Mono',monospace; padding:2px 5px; min-width:18px; text-align:center; }
+  .nbadge.orange { background:var(--accent-orange); }
+  .nav-divider { height:1px; background:var(--border); margin:8px 0; }
+  .nav-mini-sev { padding:12px 18px; display:flex; flex-direction:column; gap:7px; }
+
+  /* MAIN */
+  main { overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:16px; scrollbar-width:thin; scrollbar-color:var(--border-glow) transparent; }
+
+  /* STAT CARDS */
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .sc {
+    background:var(--bg-card); border:1px solid var(--border); padding:18px;
+    position:relative; overflow:hidden; transition:all 0.3s; cursor:default;
+  }
+  .sc::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--ca),transparent); }
+  .sc::after { content:''; position:absolute; bottom:-50px; right:-50px; width:130px; height:130px; border-radius:50%; background:radial-gradient(circle,var(--ca) 0%,transparent 70%); opacity:0.1; }
+  .sc:hover { border-color:var(--ca); transform:translateY(-2px); box-shadow:0 8px 32px rgba(0,0,0,0.6); }
+  .sc.c1{--ca:var(--accent-cyan)} .sc.c2{--ca:var(--accent-red)} .sc.c3{--ca:var(--accent-orange)} .sc.c4{--ca:var(--accent-green)}
+  .sc-lbl { font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:3px; color:var(--text-dim); margin-bottom:10px; }
+  .sc-val { font-family:'Orbitron',monospace; font-size:34px; font-weight:900; color:var(--ca); text-shadow:0 0 20px var(--ca); line-height:1; margin-bottom:6px; animation:fadeUp 1s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .sc-sub { font-size:10px; color:var(--text-secondary); font-weight:500; letter-spacing:1px; }
+  .sc-ico { position:absolute; top:14px; right:14px; font-size:22px; opacity:0.25; }
+
+  /* PANELS */
+  .panel { background:var(--bg-card); border:1px solid var(--border); overflow:hidden; }
+  .ph {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 18px; border-bottom:1px solid var(--border);
+    background:rgba(0,212,255,0.03);
+  }
+  .pt {
+    font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
+    letter-spacing:3px; color:var(--accent-cyan); display:flex; align-items:center; gap:10px;
+  }
+  .pt::before { content:''; width:3px; height:13px; background:var(--accent-cyan); box-shadow:0 0 8px var(--accent-cyan); }
+  .pbadge { font-family:'Share Tech Mono',monospace; font-size:9px; padding:2px 8px; border:1px solid currentColor; letter-spacing:2px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+  /* ALERT ROWS */
+  .al { max-height:300px; overflow-y:auto; }
+  .ar {
+    display:grid; grid-template-columns:76px 1fr auto; align-items:center; gap:14px;
+    padding:11px 18px; border-bottom:1px solid var(--border); transition:background 0.2s;
+    animation:slideIn 0.3s ease; cursor:pointer;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+  .ar:hover { background:rgba(0,212,255,0.04); }
+  .ar.crit { background:rgba(255,45,85,0.04); }
+  .asev { font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; padding:3px 6px; text-align:center; border:1px solid currentColor; font-weight:bold; }
+  .sc-crit{color:var(--critical);background:rgba(255,45,85,0.12);box-shadow:0 0 8px rgba(255,45,85,0.3)}
+  .sc-high{color:var(--high);background:rgba(255,107,53,0.1)}
+  .sc-med{color:var(--medium);background:rgba(255,215,0,0.08)}
+  .sc-low{color:var(--low);background:rgba(0,255,136,0.08)}
+  .ainfo { min-width:0; }
+  .arule { font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ameta { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary); margin-top:3px; display:flex; gap:10px; flex-wrap:wrap; }
+  .mtag { background:rgba(0,212,255,0.1); color:var(--accent-cyan); border:1px solid rgba(0,212,255,0.3); padding:1px 5px; font-size:8px; letter-spacing:1px; }
+  .sbadge { font-size:8px; padding:1px 5px; letter-spacing:1px; border:1px solid; }
+  .ss { color:var(--accent-yellow); border-color:rgba(255,215,0,0.4); background:rgba(255,215,0,0.05); }
+  .se { color:#a78bfa; border-color:rgba(167,139,250,0.4); background:rgba(167,139,250,0.05); }
+  .atime { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-dim); white-space:nowrap; text-align:right; }
+
+  /* INCIDENT CARDS */
+  .icard {
+    margin:10px 14px; border:1px solid rgba(255,45,85,0.4); background:rgba(255,45,85,0.04);
+    padding:14px; position:relative; overflow:hidden;
+    animation:iGlow 3s ease infinite;
+  }
+  @keyframes iGlow { 0%,100%{box-shadow:0 0 12px rgba(255,45,85,0.1)} 50%{box-shadow:0 0 28px rgba(255,45,85,0.3)} }
+  .ih { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .it { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:var(--accent-red); letter-spacing:2px; }
+  .mchain { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin:8px 0; }
+  .ctag { font-family:'Share Tech Mono',monospace; font-size:9px; background:rgba(255,45,85,0.15); color:var(--accent-red); border:1px solid rgba(255,45,85,0.3); padding:2px 7px; }
+  .carr { color:var(--text-dim); font-size:10px; }
+  .cbar { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .clbl { font-family:'Share Tech Mono',monospace; font-size:8px; color:var(--text-dim); letter-spacing:2px; white-space:nowrap; }
+  .ctrack { flex:1; height:4px; background:rgba(255,255,255,0.04); border-radius:2px; overflow:hidden; }
+  .cfill { height:100%; background:linear-gradient(90deg,var(--accent-orange),var(--accent-red)); box-shadow:0 0 8px var(--accent-red); transition:width 1s ease; }
+  .cval { font-family:'Orbitron',monospace; font-size:10px; color:var(--accent-red); font-weight:700; }
+
+  /* SEV CHART */
+  .sevc { padding:18px; display:flex; flex-direction:column; gap:11px; }
+  .sbr { display:flex; align-items:center; gap:8px; }
+  .sbn { font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; width:58px; flex-shrink:0; }
+  .sbt { flex:1; height:6px; background:rgba(255,255,255,0.04); border-radius:3px; overflow:hidden; }
+  .sbf { height:100%; border-radius:3px; transition:width 1.2s ease; }
+  .sbc { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; width:22px; text-align:right; }
+
+  /* MITRE MATRIX */
+  .mg { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:14px; }
+  .tc { display:flex; flex-direction:column; gap:3px; }
+  .th {
+    font-family:'Share Tech Mono',monospace; font-size:7px; letter-spacing:1px; color:var(--accent-cyan);
+    text-align:center; padding:5px 3px; background:rgba(0,212,255,0.08); border:1px solid rgba(0,212,255,0.2);
+    text-transform:uppercase; min-height:42px; display:flex; align-items:center; justify-content:center; line-height:1.4;
+  }
+  .te {
+    padding:4px 3px; font-family:'Share Tech Mono',monospace; font-size:7px; text-align:center;
+    border:1px solid var(--border); color:var(--text-dim); cursor:pointer; transition:all 0.2s;
+    min-height:30px; display:flex; align-items:center; justify-content:center; line-height:1.3;
+  }
+  .te:hover { border-color:var(--accent-cyan); color:var(--text-secondary); background:rgba(0,212,255,0.05); }
+  .te.hit { background:rgba(255,45,85,0.15); border-color:rgba(255,45,85,0.6); color:var(--accent-red); animation:tePulse 2s ease infinite; }
+  @keyframes tePulse { 0%,100%{box-shadow:0 0 6px rgba(255,45,85,0.2)} 50%{box-shadow:0 0 14px rgba(255,45,85,0.5)} }
+
+  /* TELE FEED */
+  .teli { display:flex; align-items:center; gap:10px; padding:9px 18px; border-bottom:1px solid var(--border); font-family:'Share Tech Mono',monospace; font-size:9px; transition:background 0.2s; animation:fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .teli:hover { background:rgba(0,212,255,0.03); }
+  .ttype { width:88px; flex-shrink:0; padding:2px 5px; text-align:center; font-size:8px; letter-spacing:1px; border:1px solid; }
+  .tp{color:#818cf8;border-color:rgba(129,140,248,0.4);background:rgba(129,140,248,0.06)}
+  .tn{color:#22d3ee;border-color:rgba(34,211,238,0.4);background:rgba(34,211,238,0.06)}
+  .tf{color:#fbbf24;border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.06)}
+  .th2{color:#4ade80;border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.06)}
+  .tcnt { flex:1; color:var(--text-secondary); }
+  .ttm { color:var(--text-dim); flex-shrink:0; }
+
+  /* AGENT CARD */
+  .agc { margin:10px 14px; padding:12px 14px; border:1px solid var(--border); background:rgba(0,255,136,0.02); display:flex; align-items:center; gap:14px; transition:all 0.2s; }
+  .agc:hover { border-color:var(--accent-green); box-shadow:0 0 15px rgba(0,255,136,0.1); }
+  .agring { width:38px; height:38px; border-radius:50%; border:2px solid var(--accent-green); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px rgba(0,255,136,0.3); animation:rPulse 3s ease infinite; flex-shrink:0; }
+  @keyframes rPulse { 0%,100%{box-shadow:0 0 12px rgba(0,255,136,0.3)} 50%{box-shadow:0 0 22px rgba(0,255,136,0.6)} }
+  .agn { font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:var(--text-primary); letter-spacing:2px; margin-bottom:4px; }
+  .agd { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary); display:flex; gap:10px; flex-wrap:wrap; }
+
+  /* RIGHT SIDEBAR */
+  .sr { background:var(--bg-secondary); border-left:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; scrollbar-width:thin; scrollbar-color:var(--border-glow) transparent; }
+
+  .trow { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--border); transition:all 0.2s; cursor:pointer; margin-bottom:4px; }
+  .trow:hover { border-color:var(--accent-cyan); background:rgba(0,212,255,0.05); }
+  .tid { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--accent-cyan); width:46px; flex-shrink:0; letter-spacing:1px; }
+  .tname { font-size:10px; font-weight:600; color:var(--text-secondary); flex:1; }
+  .tcnt2 { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:var(--accent-orange); }
+
+  .rrow { display:flex; align-items:center; gap:7px; padding:5px 7px; border:1px solid var(--border); transition:all 0.2s; margin-bottom:4px; }
+  .rrow:hover { border-color:var(--accent-cyan); }
+
+  .sysr { display:flex; justify-content:space-between; font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary); padding:5px 0; border-bottom:1px solid var(--border); }
+  .sysr:last-child { border-bottom:none; }
+
+  .refresh-btn { font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; padding:4px 10px; background:transparent; border:1px solid var(--border-glow); color:var(--accent-cyan); cursor:pointer; transition:all 0.2s; text-transform:uppercase; }
+  .refresh-btn:hover { background:rgba(0,212,255,0.1); box-shadow:0 0 15px rgba(0,212,255,0.2); }
+  .auto-live { display:flex; align-items:center; gap:5px; font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--accent-green); letter-spacing:1px; }
+  .empty { padding:28px; text-align:center; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-dim); letter-spacing:2px; line-height:2; }
+  .spin { width:28px; height:28px; border:2px solid var(--border); border-top-color:var(--accent-cyan); border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .loading { display:flex; align-items:center; justify-content:center; padding:32px; gap:12px; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-dim); letter-spacing:3px; }
+  ::-webkit-scrollbar{width:4px;height:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:var(--border-glow);border-radius:2px}
+  .divbar { height:1px; background:linear-gradient(90deg,transparent,var(--border-glow),transparent); margin:0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-hex"></div>
+      <div>
+        <div class="logo-text">HYBRIDGUARD</div>
+        <div class="logo-sub">SECURITY OPERATIONS CENTER — SIEM + EDR</div>
+      </div>
+    </div>
+    <div class="header-mid">
+      <div class="threat-pill"><div class="blink"></div>THREAT LEVEL: HIGH</div>
+      <div class="status-row">
+        <div class="sdot"><div class="dot g"></div>SERVER</div>
+        <div class="sdot"><div class="dot g"></div>AGENT</div>
+        <div class="sdot"><div class="dot y"></div>ALERTS OPEN</div>
+      </div>
+    </div>
+    <div class="hclock">
+      <div class="clock-val" id="clock">--:--:--</div>
+      <div class="clock-date" id="cdate"></div>
+    </div>
+  </header>
+
+  <div class="ticker">
+    <div class="ticker-label">// LIVE FEED</div>
+    <div class="ticker-scroll">
+      <span class="ticker-inner">
+        ⬡ HYBRIDGUARD SIEM+EDR PLATFORM ACTIVE &nbsp;|&nbsp;
+        ⬡ ENDPOINT MONITORING: KARTHIKREDDY &nbsp;|&nbsp;
+        ⬡ CORRELATION ENGINE: ONLINE &nbsp;|&nbsp;
+        ⬡ RULE ENGINE: 7 DETECTION RULES ACTIVE &nbsp;|&nbsp;
+        ⬡ MITRE ATT&CK COVERAGE: 12 TECHNIQUES &nbsp;|&nbsp;
+        ⬡ ATTACK CHAIN DETECTION: T1110 → T1059 → T1105 FIRING &nbsp;|&nbsp;
+        ⬡ DATABASE: HYBRIDGUARD.DB CONNECTED &nbsp;|&nbsp;
+        ⬡ AUTO-REFRESH: EVERY 10 SECONDS &nbsp;|&nbsp;
+      </span>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- LEFT NAV -->
+    <aside>
+      <div class="nl">// OPERATIONS</div>
+      <div class="ni active" onclick="nav('overview',this)"><span class="ni-icon">◈</span>OVERVIEW</div>
+      <div class="ni" onclick="nav('alerts',this)"><span class="ni-icon">⚠</span>ALERTS<span class="nbadge" id="nb-alerts">—</span></div>
+      <div class="ni" onclick="nav('incidents',this)"><span class="ni-icon">🔗</span>INCIDENTS<span class="nbadge orange" id="nb-inc">—</span></div>
+      <div class="nav-divider"></div>
+      <div class="nl">// DETECTION</div>
+      <div class="ni" onclick="nav('telemetry',this)"><span class="ni-icon">◉</span>EDR FEED</div>
+      <div class="ni" onclick="nav('mitre',this)"><span class="ni-icon">⬡</span>MITRE MATRIX</div>
+      <div class="ni" onclick="nav('agents',this)"><span class="ni-icon">⬛</span>AGENTS</div>
+      <div class="nav-divider"></div>
+      <div class="nl">// SYSTEM</div>
+      <div class="ni" onclick="refreshAll()"><span class="ni-icon">↻</span>REFRESH ALL</div>
+      <div class="nav-divider"></div>
+      <div class="nl">// SEVERITY</div>
+      <div class="nav-mini-sev" id="nav-sev"></div>
+    </aside>
+
+    <!-- MAIN -->
+    <main>
+
+      <!-- OVERVIEW -->
+      <div id="s-overview">
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="stats">
+            <div class="sc c1"><div class="sc-ico">◈</div><div class="sc-lbl">// TOTAL EVENTS 24H</div><div class="sc-val" id="v-ev">—</div><div class="sc-sub">SIEM + EDR COMBINED</div></div>
+            <div class="sc c2"><div class="sc-ico">⚠</div><div class="sc-lbl">// OPEN ALERTS</div><div class="sc-val" id="v-al">—</div><div class="sc-sub">REQUIRE ATTENTION</div></div>
+            <div class="sc c3"><div class="sc-ico">🔗</div><div class="sc-lbl">// INCIDENTS</div><div class="sc-val" id="v-in">—</div><div class="sc-sub">CORRELATED CHAINS</div></div>
+            <div class="sc c4"><div class="sc-ico">⬛</div><div class="sc-lbl">// AGENTS ONLINE</div><div class="sc-val" id="v-ag">—</div><div class="sc-sub">ENDPOINTS ACTIVE</div></div>
+          </div>
+          <div class="two">
+            <div class="panel">
+              <div class="ph"><div class="pt">ACTIVE INCIDENTS</div><span class="pbadge" style="color:var(--accent-red)">CORRELATED</span></div>
+              <div id="inc-ov"><div class="loading"><div class="spin"></div>LOADING...</div></div>
+            </div>
+            <div class="panel">
+              <div class="ph"><div class="pt">SEVERITY BREAKDOWN</div><span class="pbadge" style="color:var(--accent-cyan)">LIVE</span></div>
+              <div class="sevc" id="sev-chart"><div class="loading"><div class="spin"></div></div></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph">
+              <div class="pt">LIVE ALERT FEED</div>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div class="auto-live"><div class="dot g"></div>AUTO-REFRESH 10s</div>
+                <button class="refresh-btn" onclick="loadAlerts()">↻ REFRESH</button>
+              </div>
+            </div>
+            <div class="al" id="af-ov"><div class="loading"><div class="spin"></div>LOADING ALERTS...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALERTS -->
+      <div id="s-alerts" style="display:none;">
+        <div class="panel">
+          <div class="ph"><div class="pt">ALL ALERTS</div><button class="refresh-btn" onclick="loadAlertsFull()">↻ REFRESH</button></div>
+          <div class="al" style="max-height:calc(100vh - 220px);" id="af-full"><div class="loading"><div class="spin"></div></div></div>
+        </div>
+      </div>
+
+      <!-- INCIDENTS -->
+      <div id="s-incidents" style="display:none;">
+        <div class="panel">
+          <div class="ph">
+            <div class="pt">CORRELATED INCIDENTS</div>
+            <div style="display:flex;gap:8px;">
+              <button class="refresh-btn" onclick="triggerCorr()" style="color:var(--accent-red);border-color:var(--accent-red);">⚡ RUN CORRELATION</button>
+              <button class="refresh-btn" onclick="loadIncFull()">↻ REFRESH</button>
+            </div>
+          </div>
+          <div id="inc-full" style="padding:14px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 220px);overflow-y:auto;"><div class="loading"><div class="spin"></div></div></div>
+        </div>
+      </div>
+
+      <!-- EDR TELEMETRY -->
+      <div id="s-telemetry" style="display:none;">
+        <div class="panel">
+          <div class="ph"><div class="pt">EDR TELEMETRY FEED</div><div class="auto-live"><div class="dot g"></div>LIVE FROM KARTHIKREDDY</div></div>
+          <div style="max-height:calc(100vh - 200px);overflow-y:auto;" id="tele"><div class="loading"><div class="spin"></div></div></div>
+        </div>
+      </div>
+
+      <!-- MITRE -->
+      <div id="s-mitre" style="display:none;">
+        <div class="panel">
+          <div class="ph"><div class="pt">MITRE ATT&CK COVERAGE MATRIX</div><span class="pbadge" style="color:var(--accent-red)">12 TECHNIQUES ACTIVE</span></div>
+          <div class="mg" id="mitre-grid"></div>
+          <div style="padding:14px;display:flex;align-items:center;gap:20px;border-top:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);">
+              <div style="width:14px;height:10px;background:rgba(255,45,85,0.15);border:1px solid rgba(255,45,85,0.6);"></div> DETECTED BY HYBRIDGUARD
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);">
+              <div style="width:14px;height:10px;background:rgba(255,255,255,0.01);border:1px solid var(--border);"></div> NOT YET COVERED
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENTS -->
+      <div id="s-agents" style="display:none;">
+        <div class="panel">
+          <div class="ph"><div class="pt">REGISTERED EDR AGENTS</div><button class="refresh-btn" onclick="loadAgents()">↻ REFRESH</button></div>
+          <div id="agents-list"><div class="loading"><div class="spin"></div></div></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- RIGHT SIDEBAR -->
+    <div class="sr">
+      <div class="ph" style="border-bottom:1px solid var(--border);"><div class="pt">TOP TECHNIQUES</div></div>
+      <div style="padding:12px 14px;" id="top-tech"><div class="loading"><div class="spin"></div></div></div>
+
+      <div class="divbar"></div>
+      <div class="ph"><div class="pt">DETECTION RULES</div></div>
+      <div style="padding:10px 14px;" id="rules-panel"></div>
+
+      <div class="divbar"></div>
+      <div class="ph"><div class="pt">SYSTEM STATUS</div></div>
+      <div style="padding:14px 16px;">
+        <div class="sysr"><span>FASTAPI SERVER</span><span style="color:var(--accent-green)">● ONLINE</span></div>
+        <div class="sysr"><span>SQLITE DATABASE</span><span style="color:var(--accent-green)">● CONNECTED</span></div>
+        <div class="sysr"><span>SIEM ENGINE</span><span style="color:var(--accent-green)">● ACTIVE</span></div>
+        <div class="sysr"><span>EDR ENGINE</span><span style="color:var(--accent-green)">● ACTIVE</span></div>
+        <div class="sysr"><span>CORRELATION</span><span style="color:var(--accent-green)">● RUNNING</span></div>
+        <div class="sysr"><span>EDR AGENT</span><span style="color:var(--accent-green)" id="agt-sys">● ONLINE</span></div>
+      </div>
+
+      <div class="divbar"></div>
+      <div class="ph"><div class="pt">QUICK ACTIONS</div></div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+        <button class="refresh-btn" style="width:100%;padding:8px;" onclick="triggerCorr()">⚡ RUN CORRELATION ENGINE</button>
+        <button class="refresh-btn" style="width:100%;padding:8px;" onclick="refreshAll()">↻ REFRESH ALL DATA</button>
+        <button class="refresh-btn" style="width:100%;padding:8px;" onclick="nav('mitre',null)">⬡ VIEW MITRE MATRIX</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+
+// Clock
+function tick() {
+  const n = new Date();
+  document.getElementById('clock').textContent = n.toTimeString().slice(0,8);
+  document.getElementById('cdate').textContent = n.toDateString().toUpperCase();
+}
+setInterval(tick,1000); tick();
+
+// Nav
+function nav(name, el) {
+  ['overview','alerts','incidents','telemetry','mitre','agents'].forEach(s => {
+    const e = document.getElementById('s-'+s);
+    if(e) e.style.display = s===name ? '' : 'none';
+  });
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(name==='alerts') loadAlertsFull();
+  if(name==='incidents') loadIncFull();
+  if(name==='telemetry') loadTele();
+  if(name==='mitre') renderMitre();
+  if(name==='agents') loadAgents();
+}
+
+// Helpers
+const SC = s => ({'CRITICAL':'sc-crit','HIGH':'sc-high','MEDIUM':'sc-med','LOW':'sc-low'}[s]||'sc-low');
+const SCOL = s => ({'CRITICAL':'var(--critical)','HIGH':'var(--high)','MEDIUM':'var(--medium)','LOW':'var(--low)'}[s]||'var(--low)');
+function ft(ts) { if(!ts) return '—'; return new Date(ts).toTimeString().slice(0,8); }
+function fago(ts) {
+  if(!ts) return '';
+  // Server stores UTC, fix offset
+  const serverTime = new Date(ts + 'Z'); // treat as UTC
+  const d = (Date.now() - serverTime) / 1000;
+  if(d < 0) return 'just now';
+  if(d < 60) return Math.floor(d) + 's ago';
+  if(d < 3600) return Math.floor(d/60) + 'm ago';
+  if(d < 86400) return Math.floor(d/3600) + 'h ago';
+  return Math.floor(d/86400) + 'd ago';
+}
+
+// Summary
+async function loadSummary() {
+  try {
+    const d = await fetch(API+'/dashboard/summary').then(r=>r.json());
+    document.getElementById('v-ev').textContent = d.total_events_24h??'0';
+    document.getElementById('v-al').textContent = d.open_alerts??'0';
+    document.getElementById('v-in').textContent = d.open_incidents??'0';
+    document.getElementById('v-ag').textContent = d.online_agents??'0';
+    document.getElementById('nb-alerts').textContent = d.open_alerts??'0';
+    document.getElementById('nb-inc').textContent = d.open_incidents??'0';
+
+    // Sev chart
+    const sev = d.severity_breakdown||{};
+    const tot = Object.values(sev).reduce((a,b)=>a+b,0)||1;
+    document.getElementById('sev-chart').innerHTML = Object.entries(sev).map(([k,v])=>`
+      <div class="sbr">
+        <div class="sbn" style="color:${SCOL(k)}">${k}</div>
+        <div class="sbt"><div class="sbf" style="width:${Math.round(v/tot*100)}%;background:${SCOL(k)};box-shadow:0 0 6px ${SCOL(k)};"></div></div>
+        <div class="sbc" style="color:${SCOL(k)}">${v}</div>
+      </div>`).join('') || '<div class="empty">NO DATA</div>';
+
+    // Nav sev mini
+    document.getElementById('nav-sev').innerHTML = Object.entries(sev).map(([k,v])=>`
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:5px;height:5px;border-radius:50%;background:${SCOL(k)};flex-shrink:0;"></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:${SCOL(k)};letter-spacing:1px;flex:1;">${k}</div>
+        <div style="font-family:'Orbitron',monospace;font-size:9px;font-weight:700;color:${SCOL(k)};">${v}</div>
+      </div>`).join('');
+
+    // Top techniques
+    const techs = d.top_techniques||[];
+    const TN = {'T1110':'Brute Force','T1078':'Valid Accounts','T1059':'Cmd Interpreter','T1055':'Process Injection','T1486':'Ransomware','T1105':'File Drop','T1021':'Remote Services','T1048':'Exfiltration','T1071':'C2 Channel','T1136':'New Account','T1068':'Privilege Esc'};
+    document.getElementById('top-tech').innerHTML = techs.length ?
+      techs.map(t=>`<div class="trow"><div class="tid">${t.mitre_id}</div><div class="tname">${TN[t.mitre_id]||'TECHNIQUE'}</div><div class="tcnt2">${t.count}</div></div>`).join('') :
+      '<div class="empty">NO DATA YET</div>';
+  } catch(e) { console.error(e); }
+}
+
+// Alerts
+function renderAlert(a) {
+  return `<div class="ar ${a.severity==='CRITICAL'?'crit':''}">
+    <div class="asev ${SC(a.severity)}">${a.severity||'?'}</div>
+    <div class="ainfo">
+      <div class="arule">${a.rule_name||'Unknown'}</div>
+      <div class="ameta">
+        <span class="mtag">${a.mitre_id||''}</span>
+        <span class="sbadge ${a.source==='SIEM'?'ss':'se'}">${a.source||''}</span>
+        ${a.hostname?`<span>⬛ ${a.hostname}</span>`:''}
+        ${a.username?`<span>◈ ${a.username}</span>`:''}
+        ${a.source_ip?`<span>⬡ ${a.source_ip}</span>`:''}
+      </div>
+    </div>
+    <div class="atime">
+      <div>${ft(a.timestamp)}</div>
+      <div style="margin-top:2px;">${fago(a.timestamp)}</div>
+      <div style="margin-top:3px;font-size:8px;color:${a.status==='OPEN'?'var(--accent-red)':'var(--text-dim)'}">${a.status}</div>
+    </div>
+  </div>`;
+}
+
+async function loadAlerts() {
+  try {
+    const d = await fetch(API+'/dashboard/alerts?limit=20').then(r=>r.json());
+    document.getElementById('af-ov').innerHTML = d.length ? d.map(renderAlert).join('') : '<div class="empty">// NO ALERTS DETECTED</div>';
+  } catch(e) { document.getElementById('af-ov').innerHTML = '<div class="empty">// CANNOT REACH SERVER<br>IS UVICORN RUNNING?</div>'; }
+}
+
+async function loadAlertsFull() {
+  try {
+    const d = await fetch(API+'/dashboard/alerts?limit=200').then(r=>r.json());
+    document.getElementById('af-full').innerHTML = d.length ? d.map(renderAlert).join('') : '<div class="empty">// NO ALERTS</div>';
+  } catch(e) {}
+}
+
+// Incidents
+function renderInc(i) {
+  const chain = (i.mitre_chain||'').split('→').map(t=>t.trim()).filter(Boolean);
+  return `<div class="icard">
+    <div class="ih">
+      <div class="it">🔗 ${i.title}</div>
+      <span class="pbadge" style="color:var(--accent-red);font-size:8px;">${i.severity}</span>
+    </div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);line-height:1.7;">${i.description}</div>
+    <div class="mchain">${chain.map((t,idx)=>`<span class="ctag">${t}</span>${idx<chain.length-1?'<span class="carr">→</span>':''}`).join('')}</div>
+    <div class="cbar">
+      <span class="clbl">CONFIDENCE</span>
+      <div class="ctrack"><div class="cfill" style="width:${i.confidence||0}%"></div></div>
+      <span class="cval">${Math.round(i.confidence||0)}%</span>
+    </div>
+    <div style="margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--text-dim);display:flex;gap:14px;flex-wrap:wrap;">
+      <span>HOST: ${i.hostname||'—'}</span>
+      <span>TIME: ${ft(i.timestamp)}</span>
+      <span>TACTICS: ${i.tactic_chain||'—'}</span>
+      <span style="color:${i.status==='OPEN'?'var(--accent-red)':'var(--text-dim)'}">● ${i.status}</span>
+    </div>
+  </div>`;
+}
+
+async function loadIncidents() {
+  try {
+    const d = await fetch(API+'/dashboard/incidents').then(r=>r.json());
+    document.getElementById('inc-ov').innerHTML = d.length ? d.map(renderInc).join('') : '<div class="empty">// NO INCIDENTS YET<br><br>SEND ATTACK CHAIN:<br>T1110 → T1059 → T1105<br>THEN HIT CORRELATE</div>';
+  } catch(e) {}
+}
+
+async function loadIncFull() {
+  try {
+    const d = await fetch(API+'/dashboard/incidents').then(r=>r.json());
+    document.getElementById('inc-full').innerHTML = d.length ? d.map(renderInc).join('') : '<div class="empty">// NO INCIDENTS<br>USE QUICK ACTION → RUN CORRELATION</div>';
+  } catch(e) {}
+}
+
+async function triggerCorr() {
+  try {
+    const d = await fetch(API+'/dashboard/correlate',{method:'POST'}).then(r=>r.json());
+    alert(`✅ Correlation complete!\nNew incidents created: ${d.incidents_created}`);
+    loadIncidents(); loadIncFull(); loadSummary();
+  } catch(e) { alert('❌ Server unreachable. Is uvicorn running?'); }
+}
+
+// Telemetry
+async function loadTele() {
+  try {
+    const d = await fetch(API+'/dashboard/telemetry?limit=150').then(r=>r.json());
+    const TM = {process_created:'tp',network_conn:'tn',file_created:'tf',file_renamed:'tf',heartbeat:'th2'};
+    const TL = {process_created:'PROCESS',network_conn:'NETWORK',file_created:'FILE',file_renamed:'RENAMED',heartbeat:'HEARTBEAT'};
+    document.getElementById('tele').innerHTML = d.length ?
+      d.map(t=>`<div class="teli">
+        <div class="ttype ${TM[t.event_type]||'tp'}">${TL[t.event_type]||t.event_type}</div>
+        <div class="tcnt">
+          ${t.process_name?`<b style="color:var(--text-primary)">${t.process_name}</b>`:''}
+          ${t.parent_process?` ← ${t.parent_process}`:''}
+          ${t.file_path?`<span style="color:var(--accent-yellow)">${t.file_path.slice(-45)}</span>`:''}
+          ${t.dest_ip?`→ <span style="color:var(--accent-red)">${t.dest_ip}:${t.dest_port||'?'}</span>`:''}
+          ${!t.process_name&&!t.file_path&&!t.dest_ip?`<span style="color:var(--text-dim)">${t.hostname} / ${t.event_type}</span>`:''}
+        </div>
+        <div class="ttm">${ft(t.timestamp)}</div>
+      </div>`).join('') :
+      '<div class="empty">// NO TELEMETRY DATA</div>';
+  } catch(e) { document.getElementById('tele').innerHTML = '<div class="empty">// CANNOT REACH SERVER</div>'; }
+}
+
+// MITRE Matrix
+function renderMitre() {
+  const covered = new Set(['T1078','T1059','T1136','T1068','T1021','T1071','T1105','T1486','T1110','T1055','T1048','T1190']);
+  const tactics = [
+    {n:'Initial\nAccess',t:['T1078','T1190','T1566','T1133','T1195']},
+    {n:'Execution',t:['T1059','T1053','T1569','T1204','T1106']},
+    {n:'Persistence',t:['T1547','T1136','T1543','T1574','T1053']},
+    {n:'Privilege\nEscalation',t:['T1068','T1055','T1548','T1134','T1611']},
+    {n:'Lateral\nMovement',t:['T1021','T1091','T1210','T1534','T1080']},
+    {n:'C2\nChannel',t:['T1071','T1095','T1105','T1219','T1572']},
+    {n:'Impact',t:['T1486','T1489','T1498','T1110','T1048']},
+  ];
+  document.getElementById('mitre-grid').innerHTML = tactics.map(t=>`
+    <div class="tc">
+      <div class="th">${t.n.replace('\n','<br>')}</div>
+      ${t.t.map(id=>`<div class="te ${covered.has(id)?'hit':''}" title="${id}">${id}${covered.has(id)?'<br>●':''}</div>`).join('')}
+    </div>`).join('');
+}
+
+// Agents
+async function loadAgents() {
+  try {
+    const d = await fetch(API+'/dashboard/agents').then(r=>r.json());
+    document.getElementById('agents-list').innerHTML = d.length ?
+      d.map(a=>`<div class="agc">
+        <div class="agring" style="${a.status!=='ONLINE'?'border-color:var(--text-dim);box-shadow:none;animation:none;':''}">
+          <span style="color:${a.status==='ONLINE'?'var(--accent-green)':'var(--text-dim)'};">●</span>
+        </div>
+        <div style="flex:1;">
+          <div class="agn">${a.hostname}</div>
+          <div class="agd">
+            <span>OS: ${a.os}</span>
+            <span>IP: ${a.ip_address}</span>
+            <span style="color:${a.status==='ONLINE'?'var(--accent-green)':'var(--accent-red)'}">● ${a.status}</span>
+          </div>
+          <div class="agd" style="margin-top:3px;">
+            <span>LAST SEEN: ${fago(a.last_seen)}</span>
+            <span>ID: ${a.agent_id.slice(0,8)}...</span>
+          </div>
+        </div>
+      </div>`).join('') :
+      '<div class="empty">// NO AGENTS REGISTERED</div>';
+  } catch(e) {}
+}
+
+// Detection Rules
+function renderRules() {
+  const rules = [
+    {id:'T1110',n:'Brute Force',s:'HIGH'},
+    {id:'T1078',n:'Off-Hours Login',s:'MEDIUM'},
+    {id:'T1021',n:'Lateral Movement',s:'CRITICAL'},
+    {id:'T1059',n:'Cmd Interpreter',s:'HIGH'},
+    {id:'T1486',n:'Ransomware',s:'CRITICAL'},
+    {id:'T1071',n:'Reverse Shell',s:'CRITICAL'},
+    {id:'T1105',n:'Exe Drop',s:'HIGH'},
+  ];
+  document.getElementById('rules-panel').innerHTML = rules.map(r=>`
+    <div class="rrow">
+      <div style="width:5px;height:5px;border-radius:50%;background:${SCOL(r.s)};flex-shrink:0;"></div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--accent-cyan);width:38px;flex-shrink:0;">${r.id}</div>
+      <div style="font-size:10px;font-weight:600;color:var(--text-secondary);flex:1;">${r.n}</div>
+    </div>`).join('');
+}
+
+// Refresh
+function refreshAll() {
+  loadSummary();
+  loadAlerts();
+  loadIncidents();
+}
+
+setInterval(refreshAll, 10000);
+refreshAll();
+renderRules();
+renderMitre();
+</script>
+</body>
+</html>
